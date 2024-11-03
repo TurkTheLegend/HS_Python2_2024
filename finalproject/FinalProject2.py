@@ -4,13 +4,14 @@ import base64
 
 import bcrypt
 from cryptography.fernet import Fernet
+import pandas as pd
 
 
 class User:
     def __init__(self, username, master_password):
         self.username = username
         self.master_password = master_password
-        self.apps = {}
+        self.apps = pd.DataFrame(columns=["app_name", "account_name", "encrypted_password", "salt"])
 
     def store_master_password(self):
         """Stores the master password securely."""
@@ -39,18 +40,24 @@ class User:
         f = Fernet(b64_key)
         encrypted_password = f.encrypt(password.encode("utf-8")).decode("utf-8")
 
-        if app_name not in self.apps:
-            self.apps[app_name] = {}
+        new_data = {
+            "app_name": app_name,
+            "account_name": account_name,
+            "encrypted_password": encrypted_password,
+            "salt": salt.decode("utf-8"),
+        }
 
-        self.apps[app_name][account_name] = (encrypted_password, salt.decode("utf-8"))
+        self.apps = pd.concat([self.apps, pd.DataFrame([new_data])], ignore_index=True)
 
     def retrieve_app_password(self, app_name, account_name):
         """Retrieves and decrypts a stored app password."""
-        if (
-            app_name in self.apps
-            and account_name in self.apps[app_name]
-        ):
-            encrypted_app_password, app_salt = self.apps[app_name][account_name]
+        entry = self.apps[
+            (self.apps["app_name"] == app_name)
+            & (self.apps["account_name"] == account_name)
+        ]
+        if not entry.empty:
+            encrypted_app_password = entry["encrypted_password"].values[0]
+            app_salt = entry["salt"].values[0]
             key = bcrypt.kdf(
                 password=self.master_password[0].encode("utf-8"),
                 salt=app_salt.encode("utf-8"),
@@ -79,9 +86,12 @@ class PasswordManager:
             data = json.load(f)
             users = {}
             for username, user_data in data.items():
-                master_password = (user_data["master_password"][0], user_data["master_password"][1])
+                master_password = (
+                    user_data["master_password"][0],
+                    user_data["master_password"][1],
+                )
                 user = User(username, master_password)
-                user.apps = user_data.get("apps", {})
+                user.apps = pd.DataFrame(user_data.get("apps", []))
                 users[username] = user
             return users
 
@@ -91,7 +101,7 @@ class PasswordManager:
         for username, user in self.users.items():
             data[username] = {
                 "master_password": user.master_password,
-                "apps": user.apps,
+                "apps": user.apps.to_dict(orient="records"),
             }
         with open("data.json", "w") as f:
             json.dump(data, f, indent=4)
@@ -135,6 +145,17 @@ class PasswordManager:
             print("Credentials not found.")
             return None
 
+    def display_app_accounts(self, user):
+        """Displays the list of applications and accounts using a DataFrame."""
+        if not user.apps.empty:
+            # Group by app_name and aggregate account_names
+            app_df = user.apps.groupby('app_name')['account_name'].apply(list).reset_index(name='accounts')
+
+            # Display the DataFrame
+            print(app_df.to_markdown(index=False, numalign="left", stralign="left"))
+        else:
+            print("No stored passwords found.")
+
 
 
 def main():
@@ -171,7 +192,8 @@ def main():
                     print("\nChoose an action:")
                     print("1. Register new app account")
                     print("2. Retrieve app account password")
-                    print("3. Exit")
+                    print("3. Display app accounts")
+                    print("4. Exit")
                     choice = input("Enter your choice: ")
                     if choice == "1":
                         app_name = input("Enter application name: ")
@@ -185,33 +207,37 @@ def main():
                             user, app_name, account_name, password
                         )
                     elif choice == "2":
-                        if not user.apps:
+                        if user.apps.empty:  # Use .empty to check if DataFrame is empty
                             print("No stored passwords found.")
                             continue
+
+                        # Get unique app names from the DataFrame
+                        app_names = user.apps['app_name'].unique()
                         print("\nYour applications:")
-                        for i, app in enumerate(user.apps.keys()):
+                        for i, app in enumerate(app_names):
                             print(f"{i + 1}. {app}")
+
                         try:
                             app_choice = int(input("Choose an application: ")) - 1
-                            chosen_app = list(user.apps.keys())[app_choice]
-                        except (ValueError, IndexError):
-                            print("Invalid application choice.")
-                            continue
-                        print("\nYour accounts for this application:")
-                        for i, account in enumerate(user.apps[chosen_app].keys()):
-                            print(f"{i + 1}. {account}")
-                        try:
+                            chosen_app = app_names[app_choice]  # Select app name from the array
+
+                            # Filter accounts for the chosen app
+                            accounts_for_app = user.apps[user.apps['app_name'] == chosen_app]['account_name'].tolist()
+                            print("\nYour accounts for this application:")
+                            for i, account in enumerate(accounts_for_app):
+                                print(f"{i + 1}. {account}")
+
                             account_choice = int(input("Choose an account: ")) - 1
-                            chosen_account = list(
-                                user.apps[chosen_app].keys()
-                            )[account_choice]
+                            chosen_account = accounts_for_app[account_choice]  # Select account from the filtered list
+
+                            password_manager.retrieve_app_account_password(user, chosen_app, chosen_account)
+
                         except (ValueError, IndexError):
-                            print("Invalid account choice.")
-                            continue
-                        password_manager.retrieve_app_account_password(
-                            user, chosen_app, chosen_account
-                        )
+                            print("Invalid choice.")
+
                     elif choice == "3":
+                        password_manager.display_app_accounts(user)
+                    elif choice == "4":
                         break
                     else:
                         print("Invalid choice.")
