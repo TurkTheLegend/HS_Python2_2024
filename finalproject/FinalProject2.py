@@ -73,6 +73,27 @@ class User:
         else:
             return None
 
+    def export_to_csv(self, filename="passwords.csv"):
+        """Exports the user's app passwords to a CSV file."""
+        try:
+            # Create a copy of the DataFrame to avoid modifying the original
+            export_df = self.apps.copy()
+
+            # Decrypt the passwords
+            export_df['password'] = export_df.apply(
+                lambda row: self.retrieve_app_password(row['app_name'], row['account_name']), axis=1
+            )
+
+            # Drop the encrypted_password and salt columns
+            export_df = export_df.drop(columns=['encrypted_password', 'salt'])
+
+            # Export the DataFrame to CSV
+            export_df.to_csv(filename, index=False)
+            print(f"Passwords exported to {filename} successfully!")
+
+        except Exception as e:
+            print(f"Error exporting to CSV: {e}")
+
 
 class PasswordManager:
     def __init__(self):
@@ -193,7 +214,8 @@ def main():
                     print("1. Register new app account")
                     print("2. Retrieve app account password")
                     print("3. Display app accounts")
-                    print("4. Exit")
+                    print("4. Export passwords to CSV")
+                    print("5. Exit")
                     choice = input("Enter your choice: ")
                     if choice == "1":
                         app_name = input("Enter application name: ")
@@ -238,6 +260,9 @@ def main():
                     elif choice == "3":
                         password_manager.display_app_accounts(user)
                     elif choice == "4":
+                        filename = input("Enter the desired filename (e.g., passwords.csv): ")
+                        user.export_to_csv(filename)
+                    elif choice == "5":
                         break
                     else:
                         print("Invalid choice.")
