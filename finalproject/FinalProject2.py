@@ -11,7 +11,7 @@ class User:
     def __init__(self, username, master_password):
         self.username = username
         self.master_password = master_password
-        self.apps = pd.DataFrame(columns=["app_name", "account_name", "encrypted_password", "salt"])
+        self.apps = pd.DataFrame(columns=["title", "username", "encrypted_password", "salt"])
 
     def store_master_password(self):
         """Stores the master password securely."""
@@ -27,7 +27,7 @@ class User:
             stored_master_password_hash.encode("utf-8"),
         )
 
-    def store_app_password(self, app_name, account_name, password):
+    def store_app_password(self, title, username, password):
         """Encrypts and stores an app password using the master password."""
         salt = bcrypt.gensalt()
         key = bcrypt.kdf(
@@ -41,19 +41,19 @@ class User:
         encrypted_password = f.encrypt(password.encode("utf-8")).decode("utf-8")
 
         new_data = {
-            "app_name": app_name,
-            "account_name": account_name,
+            "title": title,
+            "username": username,
             "encrypted_password": encrypted_password,
             "salt": salt.decode("utf-8"),
         }
 
         self.apps = pd.concat([self.apps, pd.DataFrame([new_data])], ignore_index=True)
 
-    def retrieve_app_password(self, app_name, account_name):
+    def retrieve_app_password(self, title, username):
         """Retrieves and decrypts a stored app password."""
         entry = self.apps[
-            (self.apps["app_name"] == app_name)
-            & (self.apps["account_name"] == account_name)
+            (self.apps["title"] == title)
+            & (self.apps["username"] == username)
         ]
         if not entry.empty:
             encrypted_app_password = entry["encrypted_password"].values[0]
@@ -74,20 +74,34 @@ class User:
             return None
 
     def export_to_csv(self, filename="passwords.csv"):
-        """Exports the user's app passwords to a CSV file."""
+        """
+        Exports the user's app passwords to a CSV file in a format
+        compatible with common password managers.
+        """
         try:
             # Create a copy of the DataFrame to avoid modifying the original
             export_df = self.apps.copy()
 
+            # Rename columns to match common password manager formats
+            export_df = export_df.rename(columns={
+                "title": "name",  # Rename "title" to "name"
+            })
+
             # Decrypt the passwords
             export_df['password'] = export_df.apply(
-                lambda row: self.retrieve_app_password(row['app_name'], row['account_name']), axis=1
+                lambda row: self.retrieve_app_password(row['name'], row['username']), axis=1
             )
 
-            # Drop the encrypted_password and salt columns
-            export_df = export_df.drop(columns=['encrypted_password', 'salt'])
+            # Add a URL column (we'll assume it's not stored currently)
+            export_df['url'] = ''  # You can populate this if you have URL data
 
-            # Export the DataFrame to CSV
+            # Add a notes column (optional)
+            export_df['notes'] = ''
+
+            # Reorder columns to match common formats
+            export_df = export_df[['name', 'url', 'username', 'password', 'notes']]
+
+            # Export the DataFrame to CSV (no need to drop columns here)
             export_df.to_csv(filename, index=False)
             print(f"Passwords exported to {filename} successfully!")
 
@@ -150,17 +164,17 @@ class PasswordManager:
             print("Incorrect master password or username not found.")
             return None
 
-    def register_app_account(self, user, app_name, account_name, password):
+    def register_app_account(self, user, title, username, password):
         """Registers a new app account for a logged-in user."""
-        user.store_app_password(app_name, account_name, password)
+        user.store_app_password(title, username, password)
         self.save_data()
-        print(f"Password for {account_name} on {app_name} stored successfully!")
+        print(f"Password for {username} on {title} stored successfully!")
 
-    def retrieve_app_account_password(self, user, app_name, account_name):
+    def retrieve_app_account_password(self, user, title, username):
         """Retrieves the password for an app account."""
-        password = user.retrieve_app_password(app_name, account_name)
+        password = user.retrieve_app_password(title, username)
         if password:
-            print(f"Password for {account_name} on {app_name}: {password}")
+            print(f"Password for {username} on {title}: {password}")
             return password
         else:
             print("Credentials not found.")
@@ -169,8 +183,8 @@ class PasswordManager:
     def display_app_accounts(self, user):
         """Displays the list of applications and accounts using a DataFrame."""
         if not user.apps.empty:
-            # Group by app_name and aggregate account_names
-            app_df = user.apps.groupby('app_name')['account_name'].apply(list).reset_index(name='accounts')
+            # Group by title and aggregate usernames
+            app_df = user.apps.groupby('title')['username'].apply(list).reset_index(name='accounts')
 
             # Display the DataFrame
             print(app_df.to_markdown(index=False, numalign="left", stralign="left"))
@@ -218,15 +232,15 @@ def main():
                     print("5. Exit")
                     choice = input("Enter your choice: ")
                     if choice == "1":
-                        app_name = input("Enter application name: ")
-                        account_name = input("Enter account username: ").strip()
-                        while account_name == "":
-                            account_name = input("Enter account username: ").strip()
+                        title = input("Enter application name: ")
+                        username = input("Enter account username: ").strip()
+                        while username == "":
+                            username = input("Enter account username: ").strip()
                         password = input("Enter password: ").strip()
                         while password == "":
                             password = input(("Enter password: ")).strip()
                         password_manager.register_app_account(
-                            user, app_name, account_name, password
+                            user, title, username, password
                         )
                     elif choice == "2":
                         if user.apps.empty:  # Use .empty to check if DataFrame is empty
@@ -234,17 +248,17 @@ def main():
                             continue
 
                         # Get unique app names from the DataFrame
-                        app_names = user.apps['app_name'].unique()
+                        titles = user.apps['title'].unique()
                         print("\nYour applications:")
-                        for i, app in enumerate(app_names):
+                        for i, app in enumerate(titles):
                             print(f"{i + 1}. {app}")
 
                         try:
                             app_choice = int(input("Choose an application: ")) - 1
-                            chosen_app = app_names[app_choice]  # Select app name from the array
+                            chosen_app = titles[app_choice]  # Select app name from the array
 
                             # Filter accounts for the chosen app
-                            accounts_for_app = user.apps[user.apps['app_name'] == chosen_app]['account_name'].tolist()
+                            accounts_for_app = user.apps[user.apps['title'] == chosen_app]['username'].tolist()
                             print("\nYour accounts for this application:")
                             for i, account in enumerate(accounts_for_app):
                                 print(f"{i + 1}. {account}")
