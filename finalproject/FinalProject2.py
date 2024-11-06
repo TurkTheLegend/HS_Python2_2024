@@ -1,7 +1,6 @@
 import os
 import json
 import base64
-
 import bcrypt
 from cryptography.fernet import Fernet
 import pandas as pd
@@ -112,7 +111,8 @@ class User:
             )
 
             # Add a URL column (we'll assume it's not stored currently)
-            export_df["url"] = ""  # You can populate this if you have URL data
+            export_df["url"] = ""
+            # You can populate this if you have URL data
 
             # Add a notes column (optional)
             export_df["notes"] = ""
@@ -236,7 +236,8 @@ class PasswordManager:
             return None
 
     def display_app_accounts(self, user):
-        """Displays the list of applications and accounts using a DataFrame."""
+        """Displays the list of applications
+        and accounts using a DataFrame."""
         if not user.apps.empty:
             # Group by title and aggregate usernames
             app_df = (
@@ -266,77 +267,83 @@ def main():
         print("2. Login to Master Account")
         print("3. Exit")
         choice = input("Enter your choice: ")
-        if choice == "1":
-            username = input(
-                "Enter username for your master account: "
-            ).strip()
-            while username == "":
+        match choice:
+            case "1":
                 username = input(
                     "Enter username for your master account: "
                 ).strip()
-            while True:
-                password = input("Enter master password: ").strip()
-                while password == "":
-                    password = input("Enter master password: ").strip()
-                confirm_password = input("Confirm master password: ")
-                if password == confirm_password:
-                    password_manager.create_master_account(
-                        username, password
-                    )
-                    break
-                else:
-                    print("Passwords do not match. Please try again.")
-
-        elif choice == "2":
-            username = input("Enter username: ")
-            master_password = input("Enter master password: ")
-            user = password_manager.login_to_master_account(
-                username, master_password
-            )
-            if user:
+                while username == "":
+                    username = input(
+                        "Enter username for your master account: "
+                    ).strip()
                 while True:
-                    print("\nChoose an action:")
-                    print("1. Register new app account")
-                    print("2. Retrieve app account password")
-                    print("3. Display app accounts")
-                    print("4. Export passwords to CSV")
-                    print("5. Exit")
-                    choice = input("Enter your choice: ")
-                    if choice == "1":
-                        title = input("Enter application name: ")
-                        username = input("Enter account username: ").strip()
-                        while username == "":
-                            username = input(
-                                "Enter account username: "
-                            ).strip()
-                        password = input("Enter password: ").strip()
-                        while password == "":
-                            password = input(("Enter password: ")).strip()
-                        password_manager.register_app_account(
-                            user, title, username, password
+                    password = input("Enter master password: ").strip()
+                    while password == "":
+                        password = input("Enter master password: ").strip()
+                    confirm_password = input("Confirm master password: ")
+                    if password == confirm_password:
+                        password_manager.create_master_account(
+                            username, password
                         )
-                    elif choice == "2":
-                        password_manager.retrieve_app_account_password(
-                            user
-                        )  # Call without arguments
-                    elif choice == "3":
-                        password_manager.display_app_accounts(user)
-                    elif choice == "4":
-                        filename = input(
-                            "Enter the desired filename (e.g., passwords.csv): "
-                        )
-                        user.export_to_csv(filename)
-                    elif choice == "5":
                         break
                     else:
-                        print("Invalid choice.")
-            else:
-                print("Incorrect master password or username not found.")
+                        print("Passwords do not match. Please try again.")
 
-        elif choice == "3":
-            break
-        else:
-            print("Invalid choice.")
+            case "2":
+                username = input("Enter username: ")
+                master_password = input("Enter master password: ")
+                user = password_manager.login_to_master_account(
+                    username, master_password
+                )
+                if user:
+                    while True:
+                        print("\nChoose an action:")
+                        print("1. Register new app account")
+                        print("2. Retrieve app account password")
+                        print("3. Display app accounts")
+                        print("4. Export passwords to CSV")
+                        print("5. Exit")
+                        choice = input("Enter your choice: ")
+                        match choice:
+                            case "1" :
+                                title = input("Enter application name: ")
+                                username = (input("Enter account username: ")
+                                            .strip())
+                                while username == "":
+                                    username = input(
+                                        "Enter account username: "
+                                    ).strip()
+                                password = input("Enter password: ").strip()
+                                while password == "":
+                                    password = (input("Enter password: ")
+                                                .strip())
+                                password_manager.register_app_account(
+                                    user, title, username, password
+                            )
+                            case "2":
+                                (password_manager.
+                                retrieve_app_account_password(
+                                    user
+                                ))  # Call without arguments
+                            case "3" :
+                                password_manager.display_app_accounts(user)
+                            case "4" :
+                                    filename = input(
+                                        """Enter the desired filename 
+                                        (e.g., passwords.csv): """
+                                    )
+                                    user.export_to_csv(filename)
+                            case "5" :
+                                break
+                            case _ :
+                                print("Invalid choice.")
+                else:
+                    print("Incorrect master password or username not found.")
+
+            case "3":
+                break
+            case _:
+                print("Invalid choice.")
 
 
 if __name__ == "__main__":
