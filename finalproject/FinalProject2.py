@@ -4,6 +4,7 @@ import base64
 import bcrypt
 from cryptography.fernet import Fernet
 import pandas as pd
+from typing import Dict, Tuple, Union
 
 
 class User:
@@ -88,7 +89,7 @@ class User:
             return decrypted_app_password
 
         except KeyError:
-            return None
+            return
 
     def export_to_csv(self, filename: str = "passwords.csv") -> None:
         """
@@ -137,29 +138,29 @@ class User:
 class PasswordManager:
     """Manages user accounts and their passwords."""
 
-    def __init__(self):
-        self.users = self.load_data()
+    def __init__(self) -> None:
+        self.users: Dict[str, User] = self.load_data()
 
-    def load_data(self) -> dict:
+    def load_data(self) -> Dict[str, User]:
         """Loads user data from a JSON file."""
         if not os.path.exists("data.json"):
             return {}
         with open("data.json", "r") as f:
             data = json.load(f)
-            users = {}
+            users: Dict[str, User] = {}
             for username, user_data in data.items():
                 master_password = (
                     user_data["master_password"][0],
                     user_data["master_password"][1],
                 )
-                user = User(username, master_password)
+                user = User(username, master_password)  # type: ignore
                 user.apps = pd.DataFrame(user_data.get("apps", []))
                 users[username] = user
             return users
 
     def save_data(self) -> None:
         """Saves user data to a JSON file."""
-        data = {}
+        data: Dict[str, Dict[str, Union[Tuple[str, str], list]]] = {}
         for username, user in self.users.items():
             data[username] = {
                 "master_password": user.master_password,
@@ -168,7 +169,7 @@ class PasswordManager:
         with open("data.json", "w") as f:
             json.dump(data, f, indent=4)
 
-    def create_master_account(self, username, password):
+    def create_master_account(self, username: str, password: str) -> None:
         """Creates a new master account for a user."""
         if username in self.users:
             print("Username already exists.")
@@ -181,7 +182,9 @@ class PasswordManager:
         self.save_data()
         print("Master password stored successfully!")
 
-    def login_to_master_account(self, username, master_password):
+    def login_to_master_account(
+        self, username: str, master_password: str
+    ) -> Union[User, None]:
         """Logs in a user to their master account."""
         user = self.users.get(username)
         if user and user.check_master_password(master_password):
@@ -189,20 +192,25 @@ class PasswordManager:
             return user
         else:
             print("Incorrect master password or username not found.")
-            return None
+            return
 
-    def register_app_account(self, user, title, username, password):
+    def register_app_account(
+        self, user: User, title: str, username: str, password: str
+    ) -> None:
         """Registers a new app account for a logged-in user."""
         user.store_app_password(title, username, password)
         self.save_data()
         print(f"Password for {username} on {title} stored successfully!")
 
-    def retrieve_app_account_password(self, user, title=None, username=None):
+    def retrieve_app_account_password(
+        self, user: User, username: Union[str, None] = None
+            , title: Union[str, None] = None
+    ) -> Union[str, None]:
         """Retrieves the password for an app account."""
         if title is None and username is None:
             if user.apps.empty:  # Use .empty to check if DataFrame is empty
                 print("No stored passwords found.")
-                return None
+                return
 
             # Get unique app names from the DataFrame
             titles = user.apps["title"].unique()
@@ -212,9 +220,7 @@ class PasswordManager:
 
             try:
                 app_choice = int(input("Choose an application: ")) - 1
-                title = titles[
-                    app_choice
-                ]  # Select app name from the array
+                title = titles[app_choice]  # Select app name from the array
 
                 # Filter accounts for the chosen app
                 accounts_for_app = user.apps[user.apps["title"] == title][
@@ -225,24 +231,22 @@ class PasswordManager:
                     print(f"{i + 1}. {account}")
 
                 account_choice = int(input("Choose an account: ")) - 1
-                # Select account from the filtered list
-                username = accounts_for_app[account_choice]
+                username = accounts_for_app[account_choice]  # Select account from the filtered list
 
             except (ValueError, IndexError):
                 print("Invalid choice.")
-                return None
+                return
 
-        password = user.retrieve_app_password(title, username)
+        password = user.retrieve_app_password(title, username)  # type: ignore
         if password:
             print(f"Password for {username} on {title}: {password}")
             return password
         else:
             print("Credentials not found.")
-            return None
+            return
 
-    def display_app_accounts(self, user):
-        """Displays the list of applications
-        and accounts using a DataFrame."""
+    def display_app_accounts(self, user: User) -> None:
+        """Displays the list of applications and accounts using a DataFrame."""
         if not user.apps.empty:
             # Group by title and aggregate usernames
             app_df = (
@@ -259,8 +263,6 @@ class PasswordManager:
             )
         else:
             print("No stored passwords found.")
-
-
 
 def main():
     """Main function to handle user interaction and password management."""
@@ -324,7 +326,7 @@ def main():
                                                 .strip())
                                 password_manager.register_app_account(
                                     user, title, username, password
-                            )
+                                )
                             case "2":
                                 (password_manager.
                                 retrieve_app_account_password(
@@ -334,7 +336,7 @@ def main():
                                 password_manager.display_app_accounts(user)
                             case "4" :
                                     filename = input(
-                                        """Enter the desired filename 
+                                        """Enter the desired filename
                                         (e.g., passwords.csv): """
                                     )
                                     user.export_to_csv(filename)
@@ -342,14 +344,11 @@ def main():
                                 break
                             case _ :
                                 print("Invalid choice.")
-                else:
-                    print("Incorrect master password or username not found.")
 
             case "3":
                 break
             case _:
                 print("Invalid choice.")
-
 
 if __name__ == "__main__":
     main()
