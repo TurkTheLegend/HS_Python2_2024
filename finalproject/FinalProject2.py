@@ -9,14 +9,14 @@ import pandas as pd
 class User:
     """Represents a user with a master password and app accounts."""
 
-    def __init__(self, username, master_password):
+    def __init__(self, username: str, master_password: str) -> None:
         self.username = username
         self.master_password = master_password
         self.apps = pd.DataFrame(
             columns=["title", "username", "encrypted_password", "salt"]
         )
 
-    def store_master_password(self):
+    def store_master_password(self) -> tuple[str, str]:
         """Stores the master password securely."""
         salt = bcrypt.gensalt()
         hashed_password = bcrypt.hashpw(
@@ -24,7 +24,7 @@ class User:
         )
         return hashed_password.decode("utf-8"), salt.decode("utf-8")
 
-    def check_master_password(self, master_password):
+    def check_master_password(self, master_password: str) -> bool:
         """Checks if the provided master password matches the stored one."""
         stored_master_password_hash, stored_salt = self.master_password
         return bcrypt.checkpw(
@@ -32,7 +32,9 @@ class User:
             stored_master_password_hash.encode("utf-8"),
         )
 
-    def store_app_password(self, title, username, password):
+    def store_app_password(
+        self, title: str, username: str, password: str
+    ) -> None:
         """Encrypts and stores an app password using the master password."""
         salt = bcrypt.gensalt()
         key = bcrypt.kdf(
@@ -58,7 +60,9 @@ class User:
             [self.apps, pd.DataFrame([new_data])], ignore_index=True
         )
 
-    def retrieve_app_password(self, title, username):
+    def retrieve_app_password(
+        self, title: str, username: str
+    ) -> str | None:
         """Retrieves and decrypts a stored app password."""
         try:
             # Set 'title' and 'username' as index for faster lookup
@@ -86,7 +90,7 @@ class User:
         except KeyError:
             return None
 
-    def export_to_csv(self, filename="passwords.csv"):
+    def export_to_csv(self, filename: str = "passwords.csv") -> None:
         """
         Exports the user's app passwords to a CSV file in a format
         compatible with common password managers.
@@ -119,7 +123,8 @@ class User:
 
             # Reorder columns to match common formats
             export_df = export_df[
-                ["name", "url", "username", "password", "notes"]]
+                ["name", "url", "username", "password", "notes"]
+            ]
 
             # Export the DataFrame to CSV (no need to drop columns here)
             export_df.to_csv(filename, index=False)
