@@ -11,6 +11,13 @@ class User:
     """Represents a user with a master password and app accounts."""
 
     def __init__(self, username: str, master_password: str) -> None:
+        """
+        Initializes a User object.
+
+        Args:
+            username: The user's username.
+            master_password: The user's master password.
+        """
         self.username = username
         self.master_password = master_password
         self.apps = pd.DataFrame(
@@ -18,7 +25,12 @@ class User:
         )
 
     def store_master_password(self) -> tuple[str, str]:
-        """Stores the master password securely."""
+        """
+        Stores the master password securely using bcrypt.
+
+        Returns:
+            A tuple containing the hashed master password and the salt.
+        """
         salt = bcrypt.gensalt()
         hashed_password = bcrypt.hashpw(
             self.master_password.encode("utf-8"), salt
@@ -26,7 +38,15 @@ class User:
         return hashed_password.decode("utf-8"), salt.decode("utf-8")
 
     def check_master_password(self, master_password: str) -> bool:
-        """Checks if the provided master password matches the stored one."""
+        """
+        Checks if the provided master password matches the stored one.
+
+        Args:
+            master_password: The master password to check.
+
+        Returns:
+            True if the passwords match, False otherwise.
+        """
         stored_master_password_hash, stored_salt = self.master_password
         return bcrypt.checkpw(
             master_password.encode("utf-8"),
@@ -36,7 +56,14 @@ class User:
     def store_app_password(
         self, title: str, username: str, password: str
     ) -> None:
-        """Encrypts and stores an app password using the master password."""
+        """
+        Encrypts and stores an app password using the master password.
+
+        Args:
+            title: The title of the application.
+            username: The username for the app account.
+            password: The password for the app account.
+        """
         salt = bcrypt.gensalt()
         key = bcrypt.kdf(
             password=self.master_password[0].encode("utf-8"),
@@ -63,8 +90,17 @@ class User:
 
     def retrieve_app_password(
         self, title: str, username: str
-    ) -> str | None:
-        """Retrieves and decrypts a stored app password."""
+    ) -> Union[str, None]:
+        """
+        Retrieves and decrypts a stored app password.
+
+        Args:
+            title: The title of the application.
+            username: The username for the app account.
+
+        Returns:
+            The decrypted password if found, None otherwise.
+        """
         try:
             # Set 'title' and 'username' as index for faster lookup
             df_indexed = self.apps.set_index(["title", "username"])
@@ -89,12 +125,15 @@ class User:
             return decrypted_app_password
 
         except KeyError:
-            return
+            return None
 
     def export_to_csv(self, filename: str = "passwords.csv") -> None:
         """
         Exports the user's app passwords to a CSV file in a format
         compatible with common password managers.
+
+        Args:
+            filename: The name of the CSV file to export to.
         """
         try:
             # Create a copy of the DataFrame to avoid modifying the original
@@ -139,24 +178,34 @@ class PasswordManager:
     """Manages user accounts and their passwords."""
 
     def __init__(self) -> None:
+        """Initializes a PasswordManager object."""
         self.users: Dict[str, User] = self.load_data()
 
     def load_data(self) -> Dict[str, User]:
-        """Loads user data from a JSON file."""
+        """
+        Loads user data from a JSON file.
+
+        Returns:
+            A dictionary mapping usernames to User objects.
+        """
         if not os.path.exists("data.json"):
             return {}
-        with open("data.json", "r") as f:
-            data = json.load(f)
-            users: Dict[str, User] = {}
-            for username, user_data in data.items():
-                master_password = (
-                    user_data["master_password"][0],
-                    user_data["master_password"][1],
-                )
-                user = User(username, master_password)  # type: ignore
-                user.apps = pd.DataFrame(user_data.get("apps", []))
-                users[username] = user
-            return users
+        try:
+            with open("data.json", "r") as f:
+                data = json.load(f)
+                users: Dict[str, User] = {}
+                for username, user_data in data.items():
+                    master_password = (
+                        user_data["master_password"][0],
+                        user_data["master_password"][1],
+                    )
+                    user = User(username, master_password)  # type: ignore
+                    user.apps = pd.DataFrame(user_data.get("apps", []))
+                    users[username] = user
+                return users
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            print(f"Error loading data: {e}")
+            return {}
 
     def save_data(self) -> None:
         """Saves user data to a JSON file."""
@@ -166,11 +215,20 @@ class PasswordManager:
                 "master_password": user.master_password,
                 "apps": user.apps.to_dict(orient="records"),
             }
-        with open("data.json", "w") as f:
-            json.dump(data, f, indent=4)
+        try:
+            with open("data.json", "w") as f:
+                json.dump(data, f, indent=4)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            print(f"Error saving data: {e}")
 
     def create_master_account(self, username: str, password: str) -> None:
-        """Creates a new master account for a user."""
+        """
+        Creates a new master account for a user.
+
+        Args:
+            username: The username for the master account.
+            password: The master password.
+        """
         if username in self.users:
             print("Username already exists.")
             return
@@ -185,19 +243,36 @@ class PasswordManager:
     def login_to_master_account(
         self, username: str, master_password: str
     ) -> Union[User, None]:
-        """Logs in a user to their master account."""
+        """
+        Logs in a user to their master account.
+
+        Args:
+            username: The username for the master account.
+            master_password: The master password.
+
+        Returns:
+            The User object if login is successful, None otherwise.
+        """
         user = self.users.get(username)
         if user and user.check_master_password(master_password):
             print("Login successful!")
             return user
         else:
             print("Incorrect master password or username not found.")
-            return
+            return None
 
     def register_app_account(
         self, user: User, title: str, username: str, password: str
     ) -> None:
-        """Registers a new app account for a logged-in user."""
+        """
+        Registers a new app account for a logged-in user.
+
+        Args:
+            user: The User object.
+            title: The title of the application.
+            username: The username for the app account.
+            password: The password for the app account.
+        """
         user.store_app_password(title, username, password)
         self.save_data()
         print(f"Password for {username} on {title} stored successfully!")
@@ -206,7 +281,17 @@ class PasswordManager:
         self, user: User, username: Union[str, None] = None
             , title: Union[str, None] = None
     ) -> Union[str, None]:
-        """Retrieves the password for an app account."""
+        """
+        Retrieves the password for an app account.
+
+        Args:
+            user: The User object.
+            username: The username for the app account.
+            title: The title of the application.
+
+        Returns:
+            The decrypted password if found, None otherwise.
+        """
         if title is None and username is None:
             if user.apps.empty:  # Use .empty to check if DataFrame is empty
                 print("No stored passwords found.")
@@ -231,7 +316,8 @@ class PasswordManager:
                     print(f"{i + 1}. {account}")
 
                 account_choice = int(input("Choose an account: ")) - 1
-                username = accounts_for_app[account_choice]  # Select account from the filtered list
+                # Select account from the filtered list
+                username = accounts_for_app[account_choice]
 
             except (ValueError, IndexError):
                 print("Invalid choice.")
@@ -246,7 +332,12 @@ class PasswordManager:
             return
 
     def display_app_accounts(self, user: User) -> None:
-        """Displays the list of applications and accounts using a DataFrame."""
+        """
+        Displays the list of applications and accounts using a DataFrame.
+
+        Args:
+            user: The User object.
+        """
         if not user.apps.empty:
             # Group by title and aggregate usernames
             app_df = (
@@ -312,7 +403,7 @@ def main():
                         print("5. Exit")
                         choice = input("Enter your choice: ")
                         match choice:
-                            case "1" :
+                            case "1":
                                 title = input("Enter application name: ")
                                 username = (input("Enter account username: ")
                                             .strip())
@@ -320,10 +411,11 @@ def main():
                                     username = input(
                                         "Enter account username: "
                                     ).strip()
-                                password = input("Enter password: ").strip()
-                                while password == "":
-                                    password = (input("Enter password: ")
-                                                .strip())
+                                    password = input(
+                                        "Enter password: ").strip()
+                                    while password == "":
+                                        password = input(
+                                            "Enter password: ").strip()
                                 password_manager.register_app_account(
                                     user, title, username, password
                                 )
@@ -332,17 +424,17 @@ def main():
                                 retrieve_app_account_password(
                                     user
                                 ))  # Call without arguments
-                            case "3" :
+                            case "3":
                                 password_manager.display_app_accounts(user)
-                            case "4" :
-                                    filename = input(
-                                        """Enter the desired filename
-                                        (e.g., passwords.csv): """
-                                    )
-                                    user.export_to_csv(filename)
-                            case "5" :
+                            case "4":
+                                filename = input(
+                                    """Enter the desired filename
+                                    (e.g., passwords.csv): """
+                                )
+                                user.export_to_csv(filename)
+                            case "5":
                                 break
-                            case _ :
+                            case _:
                                 print("Invalid choice.")
 
             case "3":
