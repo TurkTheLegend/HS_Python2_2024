@@ -154,11 +154,10 @@ class User:
                 axis=1,
             )
 
-            # Add a URL column (we'll assume it's not stored currently)
+            # Add a URL column
             export_df["url"] = ""
-            # You can populate this if you have URL data
 
-            # Add a notes column (optional)
+            # Add a notes column
             export_df["notes"] = ""
 
             # Reorder columns to match common formats
@@ -411,11 +410,11 @@ def main():
                                     username = input(
                                         "Enter account username: "
                                     ).strip()
+                                password = input(
+                                    "Enter password: ").strip()
+                                while password == "":
                                     password = input(
                                         "Enter password: ").strip()
-                                    while password == "":
-                                        password = input(
-                                            "Enter password: ").strip()
                                 password_manager.register_app_account(
                                     user, title, username, password
                                 )
