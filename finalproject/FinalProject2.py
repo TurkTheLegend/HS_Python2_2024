@@ -426,9 +426,8 @@ def main():
                             case "3":
                                 password_manager.display_app_accounts(user)
                             case "4":
-                                filename = input(
-                                    """Enter the desired filename
-                                    (e.g., passwords.csv): """
+                                filename = input("Enter the desired filename" +
+                                "(e.g., passwords.csv): "
                                 )
                                 user.export_to_csv(filename)
                             case "5":
